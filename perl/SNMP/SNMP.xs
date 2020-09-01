@@ -220,10 +220,11 @@ __snprint_oid(const oid *objid, size_t objidlen)
 
 #endif	/* DEBUGGING */
 
+static int have_inited = 0;
+
 void
 __libraries_init(char *appname)
     {
-        static int have_inited = 0;
 
         if (have_inited)
             return;
@@ -239,6 +240,19 @@ __libraries_init(char *appname)
         netsnmp_ds_set_int(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_PRINT_SUFFIX_ONLY, 1);
 	netsnmp_ds_set_int(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_OID_OUTPUT_FORMAT,
                                               NETSNMP_OID_OUTPUT_SUFFIX);
+    }
+
+void
+__libraries_shutdown(char *appname)
+    {
+        if (!have_inited)
+            return;
+
+	snmp_shutdown(appname);
+
+        SOCK_CLEANUP;
+
+        have_inited = 0;
     }
 
 static void
@@ -2504,6 +2518,12 @@ init_snmp(appname)
         char *appname
     CODE:
         __libraries_init(appname);
+
+void
+shutdown_snmp(appname)
+        char *appname
+    CODE:
+        __libraries_shutdown(appname);
 
 #---------------------------------------------------------------------- 
 # Perl call defaults to (int)NULL when given no args, so it will return
@@ -5190,11 +5210,11 @@ snmp_mib_node_FETCH(tp_ref, key)
                     mib_hv = perl_get_hv("SNMP::MIB", FALSE);
                     if (SvMAGICAL(mib_hv)) mg = mg_find((SV*)mib_hv, 'P');
                     if (mg) mib_tied_href = (SV*)mg->mg_obj;
-                    next_node_href = newRV((SV*)newHV());
                     __tp_sprint_num_objid(str_buf, tp);
                     nn_hrefp = hv_fetch((HV*)SvRV(mib_tied_href),
                                         str_buf, strlen(str_buf), 1);
                     if (!SvROK(*nn_hrefp)) {
+                       next_node_href = newRV((SV*)newHV());
                        sv_setsv(*nn_hrefp, next_node_href);
                        ENTER ;
                        SAVETMPS ;
@@ -5434,14 +5454,14 @@ MODULE = SNMP	PACKAGE = SnmpSessionPtr	PREFIX = snmp_session_
 
 void
 snmp_session_DESTROY(sess_ptr)
-	void *sess_ptr
+	SnmpSession *sess_ptr
 	CODE:
 	{
 	if(sess_ptr != NULL)
 	{
  	 if(api_mode == SNMP_API_SINGLE)
 	 {
-           snmp_sess_close( sess_ptr );
+           snmp_sess_close( (struct session_list *) sess_ptr );
 	 } else { 
            snmp_close( sess_ptr );
 	 }

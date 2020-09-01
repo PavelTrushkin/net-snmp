@@ -183,6 +183,11 @@ sub initMib {
   }
 }
 
+sub freeMib {
+# Shuts down the net-snmp library internal structures
+  SNMP::shutdown_snmp("perl");
+}
+
 sub addMibDirs {
 # adds directories to search path when a module is requested to be loaded
   SNMP::init_snmp("perl");
